@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script type="text/javascript" src="three.js"></script>
+    <script type="text/javascript" src="OrbitControls.js"></script>
+    <script type="text/javascript" src="threeX.domevent.js"></script>
+    <div style="position:relative; z-index:1; left:-10px; top:-10px;">
+        <div id="start" style="position:absolute; left: 10px; top: 10px;" >
+            <img id="startImg" src="PLAYs.png" onclick="startGame()" style="height: 40px;width: 100px">
+        </div>
+    </div>
+</head>
+<body>
+<script>
+    // mix 버튼
+    var startButton = true; // PLAY 버튼이 한번만 나오도록.
+    var mixImg = "<img id ='mix' src='mixs.png' onmouseenter='srcChangeOver()' onmouseout='srcChangeOut()' onclick='startGame()' width='100' height='40'>";
+    // 큐브를 mix 하는 버튼
+    var arrowGeometry = new THREE.BoxBufferGeometry(6,6,6);
+    var allArrowGeometry = new THREE.BoxBufferGeometry(8,8,8);
+    // 박스의 크기를 설정하는 객체
+    var arrowMaterialDown = cubeMaterial("arrowLeft.gif","arrowRight.gif","arrowDown.gif","arrowUp.gif","","");
+    var arrowMaterialUp = cubeMaterial("arrowRight.gif","arrowLeft.gif","arrowUp.gif","arrowDown.gif","","");
+    var arrowMaterialRight = cubeMaterial("","","arrowRight.gif","arrowRight.gif","arrowRight.gif","arrowLeft.gif");
+    var arrowMaterialLeft = cubeMaterial("","","arrowLeft.gif","arrowLeft.gif","arrowLeft.gif","arrowRight.gif");
+    var arrowMaterialYRight = cubeMaterial("arrowRight.gif","","","","arrowRight.gif","arrowRight.gif");
+    var arrowMaterialYLeft = cubeMaterial("","arrowLeft.gif","","","arrowLeft.gif","arrowLeft.gif");
+    // 박스의 매질을 설정하는 객체, 각면에 사진을 넣어서 함수 내에서 객체를 만들게됨.
+    // Down = D Up = U Right = R Left =L Middle = M
+    // Z축 으로 회전하는 화살표들
+    var arrowDM = new THREE.Mesh(arrowGeometry,arrowMaterialDown);
+    var arrowDR = new THREE.Mesh(arrowGeometry,arrowMaterialDown);
+    var arrowDL = new THREE.Mesh(arrowGeometry,arrowMaterialDown);
+    var arrowUM = new THREE.Mesh(arrowGeometry,arrowMaterialUp);
+    var arrowUR = new THREE.Mesh(arrowGeometry,arrowMaterialUp);
+    var arrowUL = new THREE.Mesh(arrowGeometry,arrowMaterialUp);
+    var arrowAllDown = new THREE.Mesh(allArrowGeometry,arrowMaterialDown);
+    var arrowAllUp = new THREE.Mesh(allArrowGeometry,arrowMaterialUp);
+    // X축 으로 회전하는 화살표들
+    var arrowRM = new THREE.Mesh(arrowGeometry,arrowMaterialRight);
+    var arrowRR = new THREE.Mesh(arrowGeometry,arrowMaterialRight);
+    var arrowRL = new THREE.Mesh(arrowGeometry,arrowMaterialRight);
+    var arrowLM = new THREE.Mesh(arrowGeometry,arrowMaterialLeft);
+    var arrowLR = new THREE.Mesh(arrowGeometry,arrowMaterialLeft);
+    var arrowLL = new THREE.Mesh(arrowGeometry,arrowMaterialLeft);
+    var arrowAllRight = new THREE.Mesh(allArrowGeometry,arrowMaterialRight);
+    var arrowAllLeft = new THREE.Mesh(allArrowGeometry,arrowMaterialLeft);
+    // Y축 으로 회전하는 화살표들
+    var arrowYUR = new THREE.Mesh(arrowGeometry,arrowMaterialYRight);
+    var arrowYMR = new THREE.Mesh(arrowGeometry,arrowMaterialYRight);
+    var arrowYDR = new THREE.Mesh(arrowGeometry,arrowMaterialYRight);
+    var arrowYUL = new THREE.Mesh(arrowGeometry,arrowMaterialYLeft);
+    var arrowYML = new THREE.Mesh(arrowGeometry,arrowMaterialYLeft);
+    var arrowYDL = new THREE.Mesh(arrowGeometry,arrowMaterialYLeft);
+    var arrowAllYSpinR = new THREE.Mesh(allArrowGeometry, arrowMaterialYRight);
+    var arrowAllYSpinL = new THREE.Mesh(allArrowGeometry, arrowMaterialYLeft);
+
+    var animation=0;//requestAnimationFrame 메서드를 종료 시키기 위한 변수.
+    var stopCount=0;// 회전과 같이 카운트가 올라가서 90도가 회전되면 애니메이션을 종료하도록.
+    var rotWorldMatrix; // 큐브를 회전시키면 회전축도 같이 회전되기때문에 큐브의 회전축을 언제나 세계의 회전축에 맞출 필요가 있다.
+    var setInter; // setInterval 을 종료 시키기 위한 변수
+    var mixCount =0; // 믹스카운트가 일정 조건이 되면회전을 정지시킴.
+    var spinSpeed = Math.PI/40; // 1프레임에 회전속도를 지정해줌 이경우는 90도의 20분의 1 4.5도가 된다.
+    var xAxis = new THREE.Vector3(1,0,0); // x축 회전에 사용되는 벡터값
+    var zAxis = new THREE.Vector3(0,0,1); // z축 회전에 사용되는 벡터값
+    var yAxis = new THREE.Vector3(0,1,0); // y축 회전에 사용되는 벡터값
+    var scene = new THREE.Scene(); // 장면 객체, 이 객체안에 큐브든 카메라든 전부 넣어줘야 렌더러가 표시할때 보여지게 됨.
+    var camera = new THREE.PerspectiveCamera(80,960/720,0.1,200); // 카메라의 객체 생성(시야각,화면비,최소시야,최대시야)
+    cubePosition(camera,0,30,30); // 카메라 위치 설정
+
+
+    var renderer = new THREE.WebGLRenderer({antialias: true}); // 렌더러 객체 생성, antialias 는 박스 끝부분이 흐려지도록
+    renderer.setClearColor(0xEEEEEE); // 배경색 회색으로 설정
+    renderer.setSize(960,720); // 화면의 크기
+    document.body.appendChild(renderer.domElement); // 렌더러를 바디에 추가시켜줌.
+
+    var domEvents = new THREEx.DomEvents(camera, renderer.domElement); //큐브 객체를 클릭시 dom의 이벤트를 추가하거나 제거 할수 있는 객체
+
+    ArrowInput();
+
+    var cubeGeometry = new THREE.BoxBufferGeometry(6,6,6); // 큐브 조각조각의 크기.
+    var su=0; // 큐브마테리얼 배열 안에있는 객체의 면마다의 이미지
+    var cubesMaterial = [
+        cubeMaterial("black.gif","blue.gif","black.gif","white.gif","black.gif","green.gif"),//0
+        cubeMaterial("black.gif","blue.gif","black.gif","white.gif","black.gif","black.gif"),//1
+        cubeMaterial("black.gif","blue.gif","black.gif","white.gif","red.gif","black.gif"),//2
+        cubeMaterial("black.gif","blue.gif","black.gif","black.gif","black.gif","green.gif"),//3
+        cubeMaterial("black.gif","blue.gif","black.gif","black.gif","black.gif","black.gif"),//4
+        cubeMaterial("black.gif","blue.gif","black.gif","black.gif","red.gif","black.gif"),//5
+        cubeMaterial("black.gif","blue.gif","yellow.gif","black.gif","black.gif","green.gif"),//6
+        cubeMaterial("black.gif","blue.gif","yellow.gif","black.gif","black.gif","black.gif"),//7
+        cubeMaterial("black.gif","blue.gif","yellow.gif","black.gif","red.gif","black.gif"),//8
+        cubeMaterial("black.gif","black.gif","black.gif","white.gif","black.gif","green.gif"),//9
+        cubeMaterial("black.gif","black.gif","black.gif","white.gif","black.gif","black.gif"),//10
+        cubeMaterial("black.gif","black.gif","black.gif","white.gif","red.gif","black.gif"),//11
+        cubeMaterial("black.gif","black.gif","black.gif","black.gif","black.gif","green.gif"),//12
+        cubeMaterial("black.gif","black.gif","black.gif","black.gif","black.gif","black.gif"),//13
+        cubeMaterial("black.gif","black.gif","black.gif","black.gif","red.gif","black.gif"),//14
+        cubeMaterial("black.gif","black.gif","yellow.gif","black.gif","black.gif","green.gif"),//15
+        cubeMaterial("black.gif","black.gif","yellow.gif","black.gif","black.gif","black.gif"),//16
+        cubeMaterial("black.gif","black.gif","yellow.gif","black.gif","red.gif","black.gif"),//17
+        cubeMaterial("orange.gif","black.gif","black.gif","white.gif","black.gif","green.gif"),//18
+        cubeMaterial("orange.gif","black.gif","black.gif","white.gif","black.gif","black.gif"),//19
+        cubeMaterial("orange.gif","black.gif","black.gif","white.gif","red.gif","black.gif"),//20
+        cubeMaterial("orange.gif","black.gif","black.gif","black.gif","black.gif","green.gif"),//21
+        cubeMaterial("orange.gif","black.gif","black.gif","black.gif","black.gif","black.gif"),//22
+        cubeMaterial("orange.gif","black.gif","black.gif","black.gif","red.gif","black.gif"),//23
+        cubeMaterial("orange.gif","black.gif","yellow.gif","black.gif","black.gif","green.gif"),//24
+        cubeMaterial("orange.gif","black.gif","yellow.gif","black.gif","black.gif","black.gif"),//25
+        cubeMaterial("orange.gif","black.gif","yellow.gif","black.gif","red.gif","black.gif")//26
+    ]; // 각 큐브 객체의 면 마다의 이미지
+    var cubes =[]; // 생성된 큐브들을 이 배열안에 넣는다.
+    cubeMake();
+    for(let i =0; i<27 ; i++){
+        scene.add(cubes[i]);
+    } // cubeMake 로 생성된 큐브들을 scene 안에 넣는다.
+
+    var controls = new THREE.OrbitControls(camera,renderer.domElement); // 바디를 클릭했을때 카메라를 회전시키는 객체.
+    controls.target.set(0,0,0); // 카메라의 회전축.
+    controls.addEventListener('change', renderScene);
+    controls.mouseButtons.PAN = false; // 오른쪽마우스는 사용 안되게 오른쪽마우스는 회전축을 변화시킨다.
+    renderScene(); // 화면 표시.
+    function startGame(){ // PLAY 버튼을 누르면 섞어지는  메서드
+        spinSpeed = Math.PI/20; // 빠르게 회전
+        if(startButton) {
+            document.getElementById("start").removeChild(document.getElementById("startImg"));
+            startButton = false;
+        }else{
+            document.getElementById("start").removeChild(document.getElementById("mix"));
+        }
+        setInter = setInterval(mixRand,250);
+        function mixRand() {
+            ArrowEventMake();
+            var mix =Math.ceil(Math.random()*24); // 랜덤하게 실행
+            switch (mix) {
+                case 1:URSpin();break;
+                case 2:YDRSpin();break;
+                case 3:LRSpin();break;
+                case 4:RRSpin();break;
+                case 5:YDLSpin();break;
+                case 6:LLSpin();break;
+                case 7:LMSpin();break;
+                case 8:YMRSpin();break;
+                case 9:DMSpin();break;
+                case 10:DRSpin();break;
+                case 11:RLSpin();break;
+                case 12:RMSpin();break;
+                case 13:YMLSpin();break;
+                case 14:UMSpin();break;
+                case 15:ULSpin();break;
+                case 16:DLSpin();break;
+                case 17:YULSpin();break;
+                case 18:YURSpin();break;
+                case 19:alldownSpin();break;
+                case 20:allYRSpin();break;
+                case 21:allupSpin();break;
+                case 22:allYLSpin();break;
+                case 23:allrightSpin();break;
+                case 24:allleftSpin();break;
+            }
+            mixCount++;
+            if(mixCount == 30){
+                document.getElementById("start").innerHTML = mixImg;
+                mixCount =0;
+                clearInterval(setInter);
+                spinSpeed = Math.PI/40;
+            }
+        }
+    }
+    function cubeMake() { // 큐브를 만들고 위치 설정
+        for(let i= -6;i<=6;i=i+6){
+            for(let j= -6;j<=6;j=j+6){
+                for(let z= -6;z<=6;z=z+6){
+                    var cube =new THREE.Mesh(cubeGeometry, cubesMaterial[su]);
+                    cubePosition(cube,i,j,z);
+                    var obj3D = new THREE.Object3D(); //이 객체는 큐브를 그룹화 시켜준다.
+                    obj3D.add(cube);
+                    cubes.push(obj3D);
+                    su++;
+                }
+            }
+        }
+        
+    }
+    function rotateAroundWorldAxis(object, axis, radians) {
+        rotWorldMatrix = new THREE.Matrix4();
+        rotWorldMatrix.makeRotationAxis(axis.normalize(), radians);
+        rotWorldMatrix.multiply(object.matrix);
+        object.matrix = rotWorldMatrix;
+        object.rotation.setFromRotationMatrix(object.matrix);
+    } // 회전축을 세계의 회전축으로 설정하고, 1프레임에 radians 많큼 회전 시킨다.
+    function ArrowEventMake(){
+        domEvents.addEventListener(arrowAllDown,"click",alldownSpin,false);
+        domEvents.addEventListener(arrowAllUp,"click",allupSpin,false);
+        domEvents.addEventListener(arrowAllRight,"click",allrightSpin,false);
+        domEvents.addEventListener(arrowAllLeft,"click",allleftSpin,false);
+        domEvents.addEventListener(arrowAllYSpinR,"click",allYRSpin,false);
+        domEvents.addEventListener(arrowAllYSpinL,"click",allYLSpin,false);
+        domEvents.addEventListener(arrowDM,"click",DMSpin,false);
+        domEvents.addEventListener(arrowDR,"click",DRSpin,false);
+        domEvents.addEventListener(arrowDL,"click",DLSpin,false);
+        domEvents.addEventListener(arrowUM,"click",UMSpin,false);
+        domEvents.addEventListener(arrowUR,"click",URSpin,false);
+        domEvents.addEventListener(arrowUL,"click",ULSpin,false);
+        domEvents.addEventListener(arrowRM,"click",RMSpin,false);
+        domEvents.addEventListener(arrowRR,"click",RRSpin,false);
+        domEvents.addEventListener(arrowRL,"click",RLSpin,false);
+        domEvents.addEventListener(arrowLM,"click",LMSpin,false);
+        domEvents.addEventListener(arrowLR,"click",LRSpin,false);
+        domEvents.addEventListener(arrowLL,"click",LLSpin,false);
+        domEvents.addEventListener(arrowYUR,"click",YURSpin,false);
+        domEvents.addEventListener(arrowYMR,"click",YMRSpin,false);
+        domEvents.addEventListener(arrowYDR,"click",YDRSpin,false);
+        domEvents.addEventListener(arrowYUL,"click",YULSpin,false);
+        domEvents.addEventListener(arrowYML,"click",YMLSpin,false);
+        domEvents.addEventListener(arrowYDL,"click",YDLSpin,false);
+    } // 화살표 이벤트 부여
+    function ArrowEventRemove() {
+        domEvents.removeEventListener(arrowAllDown,"click",alldownSpin,false);
+        domEvents.removeEventListener(arrowAllUp,"click",allupSpin,false);
+        domEvents.removeEventListener(arrowAllRight,"click",allrightSpin,false);
+        domEvents.removeEventListener(arrowAllLeft,"click",allleftSpin,false);
+        domEvents.removeEventListener(arrowAllYSpinR,"click",allYRSpin,false);
+        domEvents.removeEventListener(arrowAllYSpinL,"click",allYLSpin,false);
+        domEvents.removeEventListener(arrowDM,"click",DMSpin,false);
+        domEvents.removeEventListener(arrowDR,"click",DRSpin,false);
+        domEvents.removeEventListener(arrowDL,"click",DLSpin,false);
+        domEvents.removeEventListener(arrowUM,"click",UMSpin,false);
+        domEvents.removeEventListener(arrowUR,"click",URSpin,false);
+        domEvents.removeEventListener(arrowUL,"click",ULSpin,false);
+        domEvents.removeEventListener(arrowRM,"click",RMSpin,false);
+        domEvents.removeEventListener(arrowRR,"click",RRSpin,false);
+        domEvents.removeEventListener(arrowRL,"click",RLSpin,false);
+        domEvents.removeEventListener(arrowLM,"click",LMSpin,false);
+        domEvents.removeEventListener(arrowLR,"click",LRSpin,false);
+        domEvents.removeEventListener(arrowLL,"click",LLSpin,false);
+        domEvents.removeEventListener(arrowYUR,"click",YURSpin,false);
+        domEvents.removeEventListener(arrowYMR,"click",YMRSpin,false);
+        domEvents.removeEventListener(arrowYDR,"click",YDRSpin,false);
+        domEvents.removeEventListener(arrowYUL,"click",YULSpin,false);
+        domEvents.removeEventListener(arrowYML,"click",YMLSpin,false);
+        domEvents.removeEventListener(arrowYDL,"click",YDLSpin,false);
+
+    } // 화살표 이벤트 삭제
+    function ArrowInput() {
+        cubePosition(arrowDM,0,12,18);
+        cubePosition(arrowDR,6,12,18);
+        cubePosition(arrowDL,-6,12,18);
+        cubePosition(arrowUM,0,12,-18);
+        cubePosition(arrowUR,6,12,-18);
+        cubePosition(arrowUL,-6,12,-18);
+        cubePosition(arrowRM,18,12,0);
+        cubePosition(arrowRR,18,12,6);
+        cubePosition(arrowRL,18,12,-6);
+        cubePosition(arrowLM,-18,12,0);
+        cubePosition(arrowLR,-18,12,6);
+        cubePosition(arrowLL,-18,12,-6);
+        cubePosition(arrowYUR,18,6,0);
+        cubePosition(arrowYMR,18,0,0);
+        cubePosition(arrowYDR,18,-6,0);
+        cubePosition(arrowYUL,-18,6,0);
+        cubePosition(arrowYML,-18,0,0);
+        cubePosition(arrowYDL,-18,-6,0);
+        cubePosition(arrowAllDown,0,11,30);
+        cubePosition(arrowAllUp,0,11,-30);
+        cubePosition(arrowAllRight,30,11,0);
+        cubePosition(arrowAllLeft,-30,11,0);
+        cubePosition(arrowAllYSpinR,30,0,0);
+        cubePosition(arrowAllYSpinL,-30,0,0);
+        scene.add(arrowDM);
+        scene.add(arrowDR);
+        scene.add(arrowDL);
+        scene.add(arrowUM);
+        scene.add(arrowUR);
+        scene.add(arrowUL);
+        scene.add(arrowRM);
+        scene.add(arrowRR);
+        scene.add(arrowRL);
+        scene.add(arrowLM);
+        scene.add(arrowLR);
+        scene.add(arrowLL);
+        scene.add(arrowYUR);
+        scene.add(arrowYMR);
+        scene.add(arrowYDR);
+        scene.add(arrowYUL);
+        scene.add(arrowYML);
+        scene.add(arrowYDL);
+        scene.add(arrowAllDown);
+        scene.add(arrowAllUp);
+        scene.add(arrowAllRight);
+        scene.add(arrowAllLeft);
+        scene.add(arrowAllYSpinR);
+        scene.add(arrowAllYSpinL);
+    } // 화살표의 위치와 scene 객체에 넣어줌.
+    // 반복되는 문장이라 주석은 RRSpin 에다가만 넣겠습니다.
+    function RRSpin() {
+        ArrowEventRemove(); // 다른 화살표들의 중복클릭을 방지하기위해서 화살표박스의 이벤트를 모두 삭제해줄필요가 있다.
+        animation =requestAnimationFrame(RRSpin); // 애니메이션 실행
+        for(let i=2;i<27;i +=3){ // i값으로 큐브의 조각 객체를 선택한다.
+            rotateAroundWorldAxis(cubes[i], zAxis,-spinSpeed);
+            // 세계의 회전축으로 회전한다. (객체 , 객체의 회전방향(zAxis 는 z축 회전 yAxis는 y축 회전 x Axis 는 x축 회전) , 1프레임당 객체의 회전 크기)
+        }
+        stopCount += spinSpeed; // 정지를 위한 변수
+        if(stopCount >=Math.PI/2){ // 90도가 되면 애니메이션을 종료한다.
+            cancelAnimationFrame(animation); // 애니메이션 종료.
+            stopCount =0; // 변수 초기화
+            renderScene(); // 화면 출력
+            ChangeRR(); // 큐브가 회전하면 큐브의 위치가 바뀌게 된다. 이 메서드를 실행함으로써 돌아간 큐브는 원래의 자리의 큐브가 된다.
+            ArrowEventMake(); //화살표 박스의 이벤트를 재생성
+
+        }
+        renderScene();
+    }
+    function ChangeRR(){// 큐브의 회전시 원래의 자리에 회전한 큐브를 넣어준다.
+        var temp;
+        temp = cubes[11];
+        cubes[11] = cubes[23];
+        cubes[23] = cubes[17];
+        cubes[17] = cubes[5];
+        cubes[5] = temp;
+        temp = cubes[20];
+        cubes[20] = cubes[26];
+        cubes[26] = cubes[8];
+        cubes[8] = cubes[2];
+        cubes[2] = temp;
+    }
+    function RLSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(RLSpin);
+
+        for(let i=0;i<27;i +=3){
+            rotateAroundWorldAxis(cubes[i], zAxis,-spinSpeed);
+        }
+        stopCount +=spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeRL();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeRL(){
+        var temp;
+        temp = cubes[9];
+        cubes[9] = cubes[21];
+        cubes[21] = cubes[15];
+        cubes[15] = cubes[3];
+        cubes[3] = temp;
+        temp = cubes[18];
+        cubes[18] = cubes[24];
+        cubes[24] = cubes[6];
+        cubes[6] = cubes[0];
+        cubes[0] = temp;
+    }
+    function RMSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(RMSpin);
+
+        for(let i=1;i<27;i +=3){
+            rotateAroundWorldAxis(cubes[i], zAxis,-spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeRM();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeRM(){
+        var temp;
+        temp = cubes[10];
+        cubes[10] = cubes[22];
+        cubes[22] = cubes[16];
+        cubes[16] = cubes[4];
+        cubes[4] = temp;
+        temp = cubes[19];
+        cubes[19] = cubes[25];
+        cubes[25] = cubes[7];
+        cubes[7] = cubes[1];
+        cubes[1] = temp;
+    }
+    function LRSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(LRSpin);
+
+        for(let i=2;i<27;i +=3){
+            rotateAroundWorldAxis(cubes[i], zAxis,spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeLR();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeLR(){
+        var temp;
+        temp = cubes[11];
+        cubes[11] = cubes[5];
+        cubes[5] = cubes[17];
+        cubes[17] = cubes[23];
+        cubes[23] = temp;
+        temp = cubes[20];
+        cubes[20] = cubes[2];
+        cubes[2] = cubes[8];
+        cubes[8] = cubes[26];
+        cubes[26] = temp;
+    }
+    function LLSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(LLSpin);
+
+        for(let i=0;i<27;i +=3){
+            rotateAroundWorldAxis(cubes[i], zAxis,spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeLL();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeLL(){
+        var temp;
+        temp = cubes[9];
+        cubes[9] = cubes[3];
+        cubes[3] = cubes[15];
+        cubes[15] = cubes[21];
+        cubes[21] = temp;
+        temp = cubes[18];
+        cubes[18] = cubes[0];
+        cubes[0] = cubes[6];
+        cubes[6] = cubes[24];
+        cubes[24] = temp;
+    }
+    function LMSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(LMSpin);
+
+        for(let i=1;i<27;i +=3){
+            rotateAroundWorldAxis(cubes[i], zAxis,spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeLM();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeLM(){
+        var temp;
+        temp = cubes[10];
+        cubes[10] = cubes[4];
+        cubes[4] = cubes[16];
+        cubes[16] = cubes[22];
+        cubes[22] = temp;
+        temp = cubes[19];
+        cubes[19] = cubes[1];
+        cubes[1] = cubes[7];
+        cubes[7] = cubes[25];
+        cubes[25] = temp;
+    }
+    function URSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(URSpin);
+        for(let i=18;i<27;i++){
+            rotateAroundWorldAxis(cubes[i], xAxis,-spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeUR();
+            ArrowEventMake();
+        }
+        renderScene();
+
+    }
+    function ChangeUR(){
+        var temp;
+        temp = cubes[18];
+        cubes[18] = cubes[24];
+        cubes[24] = cubes[26];
+        cubes[26] = cubes[20];
+        cubes[20] = temp;
+        temp = cubes[19];
+        cubes[19] = cubes[21];
+        cubes[21] = cubes[25];
+        cubes[25] = cubes[23];
+        cubes[23] = temp;
+    }
+    function UMSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(UMSpin);
+        for(let i=9;i<18;i++){
+            rotateAroundWorldAxis(cubes[i], xAxis,-spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeUM();
+            ArrowEventMake();
+        }
+        renderScene();
+
+    }
+    function ChangeUM(){
+        var temp;
+        temp = cubes[9];
+        cubes[9] = cubes[15];
+        cubes[15] = cubes[17];
+        cubes[17] = cubes[11];
+        cubes[11] = temp;
+        temp = cubes[10];
+        cubes[10] = cubes[12];
+        cubes[12] = cubes[16];
+        cubes[16] = cubes[14];
+        cubes[14] = temp;
+    }
+    function ULSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(ULSpin);
+        for(let i=0;i<9;i++){
+            rotateAroundWorldAxis(cubes[i], xAxis,-spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeUL();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeUL(){
+        var temp;
+        temp = cubes[0];
+        cubes[0] = cubes[6];
+        cubes[6] = cubes[8];
+        cubes[8] = cubes[2];
+        cubes[2] = temp;
+        temp = cubes[1];
+        cubes[1] = cubes[3];
+        cubes[3] = cubes[7];
+        cubes[7] = cubes[5];
+        cubes[5] = temp;
+    }
+    function DRSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(DRSpin);
+        for(let i=18;i<27;i++){
+            rotateAroundWorldAxis(cubes[i], xAxis,spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeDR();
+            ArrowEventMake();
+        }
+        renderScene();
+
+    }
+    function ChangeDR(){
+        var temp;
+        temp = cubes[18];
+        cubes[18] = cubes[20];
+        cubes[20] = cubes[26];
+        cubes[26] = cubes[24];
+        cubes[24] = temp;
+        temp = cubes[19];
+        cubes[19] = cubes[23];
+        cubes[23] = cubes[25];
+        cubes[25] = cubes[21];
+        cubes[21] = temp;
+    }
+    function DMSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(DMSpin);
+        for(let i=9;i<18;i++){
+            rotateAroundWorldAxis(cubes[i], xAxis,spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeDM();
+            ArrowEventMake();
+        }
+        renderScene();
+
+    }
+    function ChangeDM(){
+        var temp;
+        temp = cubes[9];
+        cubes[9] = cubes[11];
+        cubes[11] = cubes[17];
+        cubes[17] = cubes[15];
+        cubes[15] = temp;
+        temp = cubes[10];
+        cubes[10] = cubes[14];
+        cubes[14] = cubes[16];
+        cubes[16] = cubes[12];
+        cubes[12] = temp;
+    }
+    function DLSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(DLSpin);
+        for(let i=0;i<9;i++){
+            rotateAroundWorldAxis(cubes[i], xAxis,spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            ChangeDL();
+            renderScene();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeDL(){
+        var temp;
+        temp = cubes[0];
+        cubes[0] = cubes[2];
+        cubes[2] = cubes[8];
+        cubes[8] = cubes[6];
+        cubes[6] = temp;
+        temp = cubes[1];
+        cubes[1] = cubes[5];
+        cubes[5] = cubes[7];
+        cubes[7] = cubes[3];
+        cubes[3] = temp;
+    }
+    function YURSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(YURSpin);
+        for(let i =6; i<9;i++){
+            for(let j =0;j<19;j=j+9){
+                rotateAroundWorldAxis(cubes[i+j], yAxis,spinSpeed);
+            }
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            ChangeYUR();
+            renderScene();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeYUR() {
+        var temp;
+        temp = cubes[17];
+        cubes[17] = cubes[7];
+        cubes[7] = cubes[15];
+        cubes[15] = cubes[25];
+        cubes[25] = temp;
+        temp = cubes[26];
+        cubes[26] = cubes[8];
+        cubes[8] = cubes[6];
+        cubes[6] = cubes[24];
+        cubes[24] = temp;
+
+    }
+    function YMRSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(YMRSpin);
+        for(let i =3; i<6;i++){
+            for(let j =0;j<19;j=j+9){
+                rotateAroundWorldAxis(cubes[i+j], yAxis,spinSpeed);
+            }
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            ChangeYMR();
+            renderScene();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeYMR() {
+        var temp;
+        temp = cubes[14];
+        cubes[14] = cubes[4];
+        cubes[4] = cubes[12];
+        cubes[12] = cubes[22];
+        cubes[22] = temp;
+        temp = cubes[23];
+        cubes[23] = cubes[5];
+        cubes[5] = cubes[3];
+        cubes[3] = cubes[21];
+        cubes[21] = temp;
+    }
+    function YDRSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(YDRSpin);
+        for(let i =0; i<3;i++){
+            for(let j =0;j<19;j=j+9){
+                rotateAroundWorldAxis(cubes[i+j], yAxis,spinSpeed);
+            }
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            ChangeYDR();
+            renderScene();
+            ArrowEventMake();
+        }
+        renderScene();
+
+    }
+    function ChangeYDR() {
+        var temp;
+        temp = cubes[11];
+        cubes[11] = cubes[1];
+        cubes[1] = cubes[9];
+        cubes[9] = cubes[19];
+        cubes[19] = temp;
+        temp = cubes[20];
+        cubes[20] = cubes[2];
+        cubes[2] = cubes[0];
+        cubes[0] = cubes[18];
+        cubes[18] = temp;
+    }
+    function YULSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(YULSpin);
+        for(let i =6; i<9;i++){
+            for(let j =0;j<19;j=j+9){
+                rotateAroundWorldAxis(cubes[i+j], yAxis,-spinSpeed);
+            }
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            ChangeYUL();
+            renderScene();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeYUL() {
+        var temp;
+        temp = cubes[17];
+        cubes[17] = cubes[25];
+        cubes[25] = cubes[15];
+        cubes[15] = cubes[7];
+        cubes[7] = temp;
+        temp = cubes[26];
+        cubes[26] = cubes[24];
+        cubes[24] = cubes[6];
+        cubes[6] = cubes[8];
+        cubes[8] = temp;
+    }
+    function YMLSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(YMLSpin);
+        for(let i =3; i<6;i++){
+            for(let j =0;j<19;j=j+9){
+                rotateAroundWorldAxis(cubes[i+j], yAxis,-spinSpeed);
+            }
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            ChangeYML();
+            renderScene();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeYML() {
+        var temp;
+        temp = cubes[14];
+        cubes[14] = cubes[22];
+        cubes[22] = cubes[12];
+        cubes[12] = cubes[4];
+        cubes[4] = temp;
+        temp = cubes[23];
+        cubes[23] = cubes[21];
+        cubes[21] = cubes[3];
+        cubes[3] = cubes[5];
+        cubes[5] = temp;
+    }
+    function YDLSpin(){
+        ArrowEventRemove();
+        animation =requestAnimationFrame(YDLSpin);
+        for(let i =0; i<3;i++){
+            for(let j =0;j<19;j=j+9){
+                rotateAroundWorldAxis(cubes[i+j], yAxis,-spinSpeed);
+            }
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            ChangeYDL();
+            renderScene();
+            ArrowEventMake();
+        }
+        renderScene();
+
+
+    }
+    function ChangeYDL() {
+        var temp;
+        temp = cubes[11];
+        cubes[11] = cubes[19];
+        cubes[19] = cubes[9];
+        cubes[9] = cubes[1];
+        cubes[1] = temp;
+        temp = cubes[20];
+        cubes[20] = cubes[18];
+        cubes[18] = cubes[0];
+        cubes[0] = cubes[2];
+        cubes[2] = temp;
+
+    }
+    function alldownSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(alldownSpin);
+        for(let i=0;i<27;i++){
+            rotateAroundWorldAxis(cubes[i], xAxis,spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeAlldown();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeAlldown() {
+        ChangeDM();
+        ChangeDR();
+        ChangeDL();
+    }
+    function allupSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(allupSpin);
+        for(let i=0;i<27;i++){
+        rotateAroundWorldAxis(cubes[i], xAxis,-spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeAllup();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeAllup() {
+        ChangeUM();
+        ChangeUR();
+        ChangeUL();
+    }
+    function allrightSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(allrightSpin);
+        for(let i=0;i<27;i++){
+            rotateAroundWorldAxis(cubes[i], zAxis,-spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeAllright();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeAllright() {
+        ChangeRM();
+        ChangeRR();
+        ChangeRL();
+    }
+    function allleftSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(allleftSpin);
+        for(let i=0;i<27;i++){
+            rotateAroundWorldAxis(cubes[i], zAxis,spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >= Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount=0;
+            renderScene();
+            ChangeAllleft();
+            ArrowEventMake();
+    }
+        renderScene();
+    }
+    function ChangeAllleft() {
+        ChangeLM();
+        ChangeLR();
+        ChangeLL();
+    }
+    function allYRSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(allYRSpin);
+        for(let i=0;i<27;i++){
+            rotateAroundWorldAxis(cubes[i], yAxis,spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeAllYR();
+            ArrowEventMake();
+        }
+        renderScene();
+    }
+    function ChangeAllYR() {
+        ChangeYUR();
+        ChangeYMR();
+        ChangeYDR();
+
+    }
+    function allYLSpin() {
+        ArrowEventRemove();
+        animation =requestAnimationFrame(allYLSpin);
+        for(let i=0;i<27;i++){
+            rotateAroundWorldAxis(cubes[i], yAxis,-spinSpeed);
+        }
+        stopCount += spinSpeed;
+        if(stopCount >=Math.PI/2){
+            cancelAnimationFrame(animation);
+            stopCount =0;
+            renderScene();
+            ChangeAllYL();
+            ArrowEventMake();
+        }
+        renderScene();
+
+    }
+    function ChangeAllYL() {
+        ChangeYUL();
+        ChangeYML();
+        ChangeYDL();
+
+    }
+    // 회전
+    function cubeMaterial(colorPath1,colorPath2,colorPath3,colorPath4,colorPath5,colorPath6){ // 큐브의 색 객체를 반환함.
+        return new THREE.MeshFaceMaterial([
+            new THREE.MeshBasicMaterial({map: THREE.ImageUtils.loadTexture(colorPath1)}),
+            new THREE.MeshBasicMaterial({map: THREE.ImageUtils.loadTexture(colorPath2)}),
+            new THREE.MeshBasicMaterial({map: THREE.ImageUtils.loadTexture(colorPath3)}),
+            new THREE.MeshBasicMaterial({map: THREE.ImageUtils.loadTexture(colorPath4)}),
+            new THREE.MeshBasicMaterial({map: THREE.ImageUtils.loadTexture(colorPath5)}),
+            new THREE.MeshBasicMaterial({map: THREE.ImageUtils.loadTexture(colorPath6)})
+        ]); // 큐브 객체의 각면의 색;
+
+    } // 큐브의 각면의 색의 객체를 반환함, 매개변수 6개
+    function cubePosition(obj,x,y,z) {
+        obj.position.x = x;
+        obj.position.y = y;
+        obj.position.z = z;
+    } // 객체의 위치 설정
+    function renderScene() {
+        renderer.render(scene,camera);
+    } // 화면 출력
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderScene();
+    } //controls 의 카메라 회전의 update 에 따라서 renderScene을 실행시켜 업데이트
+    function srcChangeOver(){
+        document.getElementById("mix").src = "mix.png";
+    } // 이미지 바꾸기
+    function srcChangeOut(){
+        document.getElementById("mix").src = "mixs.png";
+    } // 이미지 바꾸기
+</script>
+</body>
+</html>
